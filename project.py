@@ -34,9 +34,10 @@ maze = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]]
 
-
-
-
+bullet_list = []
+bullet_c = 1
+missed_bullet = 0
+game_over = False
 maze_width = len(maze[0])
 maze_height = len(maze)
 cell_size = 100
@@ -52,6 +53,7 @@ bonus_coin = []  # yellow coin
 count=0
 score=0
 time=180
+fpp=False
 
 coin_big = False
 coin_rotate = 0
@@ -60,7 +62,8 @@ coin_rotate = 0
 
 
 fovY = 120  # Field of view
-GRID_LENGTH = 600  # Length of grid lines
+GRID_LENGTH = 600 
+enemies = []
 
 
 shield= False
@@ -71,13 +74,11 @@ for m in range(len(maze)):
     for n in range(len(maze[0])):
         if maze[m][n] == 0:
             free_space.append([n, m])  # stores the free space co ordinate
-
-
-
-
-
-
-
+            
+center_x = maze_width // 2
+center_y = maze_height // 2
+free_space.remove([center_x, center_y])
+count=0
 while count < 7:  # postion of coins
     x_e = random.randint(0, 18)
     y_e = random.randint(0, 18)
@@ -98,8 +99,16 @@ while count < 4:  # postion of bonus coins
 scale_x = 0.1
 scale_y = 0.1
 scale_z = 0.1
+game_win = False
 
-# for coin squizing
+
+life_list = []
+if len(life_list) < 1 and free_space:
+    x, y = random.choice(free_space)
+    free_space.remove([x, y])
+    life_list.append([x, y])
+
+
 
 
 
@@ -115,13 +124,19 @@ def setupCamera():
     glMatrixMode(GL_MODELVIEW)  # Switch to model-view matrix mode
     glLoadIdentity()  # Reset the model-view matrix
 
-
     # Extract camera position and look-at target
-    x, y, z = camera_pos
-    d, e, f = look_at_target
+    if not fpp:
+        x, y, z = camera_pos
+        d, e, f = look_at_target
 
-
-
+    else:
+        rad = math.radians(player_angle + 90)
+        x = player_pos_x - 10 * math.cos(rad)
+        y = player_pos_y - 10 * math.sin(rad)
+        z = 120
+        d = player_pos_x - 50 * math.cos(rad)
+        e = player_pos_y - 50 * math.sin(rad)
+        f = 99
 
     # Position the camera and set its orientation
     gluLookAt(x, y, z,  # Camera position
@@ -248,6 +263,29 @@ def draw_coin(x_e, y_e):
     glScalef(scale_x, scale_y, scale_z)
     gluSphere(gluNewQuadric(), 10, 100, 100)
     glPopMatrix()
+    
+def bullet():
+    global bullet_list, bullet_c
+    for bullet in bullet_list:
+        glPushMatrix()
+        glColor3f(bullet_c, 0, 0)
+        glTranslatef(bullet[0], bullet[1], bullet[2])
+        glutSolidCube(10)
+        glPopMatrix()
+
+
+def life(x3,y3):
+    global maze_height, maze_width, cell_size
+    ofst_x = -(maze_width * cell_size) / 2 + cell_size / 2
+    ofst_y = -((maze_height * cell_size) / 2 - cell_size / 2)
+    x4 = ofst_x + x3 * cell_size
+    y4 = ofst_y + y3 * cell_size
+    glPushMatrix()
+    glTranslatef(x4, y4, 0)
+    glColor3f(0, 1, 0)
+    glutSolidCube(60)
+    glPopMatrix()
+
 
 
 def draw_bonus_coin(x_b, y_b):
@@ -258,8 +296,6 @@ def draw_bonus_coin(x_b, y_b):
     y_p = ofst_y + y_b * cell_size
 
 
-
-
     glPushMatrix()
     glTranslatef(x_p, y_p, 0)
     glColor3f(0.9, 0.9, 0)
@@ -267,18 +303,31 @@ def draw_bonus_coin(x_b, y_b):
     glRotatef(90, 1, 0, 0)
     gluCylinder(gluNewQuadric(), 15, 15, 3, 10, 10)
     glPopMatrix()
+    
+    
+def grid_to_world(grid_x, grid_y):
+    ofx = -(maze_width * cell_size) / 2 + cell_size / 2
+    ofy = -((maze_height * cell_size) / 2 - cell_size / 2)
+    return ofx + grid_x * cell_size, ofy + grid_y * cell_size
+def distance(x1, y1, x2, y2):
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
 def animation():
-    global score, coin, bonus_coin, maze_height, maze_width, cell_size, scale_x, scale_y, scale_z, coin_big, coin_rotate, offset_x, offset_y, player_pos_x, player_pos_y
+    global count,life_list,player_life,game_win,game_over, time, score, coin, bonus_coin, maze_height, maze_width, cell_size, scale_x, scale_y, scale_z, coin_big, coin_rotate, bullet_list, offset_x, offset_y, cell_size, player_pos_x, player_pos_y
+
     player_grid_x = int((player_pos_x - offset_x + cell_size / 2) / cell_size)
     player_grid_y = int((player_pos_y - offset_y + cell_size / 2) / cell_size)
-        
+
+    if center_x == player_grid_x and center_y == player_grid_y:
+        game_win = True
+        game_over = True
+
+    
     if scale_x > 2 and scale_y > 2 and scale_z > 2:
             coin_big = True
     if scale_x < 1 and scale_y < 1 and scale_z < 1:
             coin_big = False
-
 
     if coin_big == False:
             scale_x += 0.005
@@ -293,7 +342,61 @@ def animation():
             coin_rotate += 0.5
     else:
             coin_rotate = 0
-        ################################# bonus coin rotate###########################################   
+        ################################# bonus coin rotate###########################################
+    bullet_speed = 10
+    offset_x = -(maze_width * cell_size) / 2 + cell_size / 2
+    offset_y = -((maze_height * cell_size) / 2 - cell_size / 2)
+
+    for bullet in bullet_list:
+            # Move bullet
+            bullet[0] -= bullet[3] * bullet_speed
+            bullet[1] -= bullet[4] * bullet_speed
+
+            # Convert bullet pos to grid index
+            grid_x = int((bullet[0] - offset_x + cell_size / 2) / cell_size)
+            grid_y = int((bullet[1] - offset_y + cell_size / 2) / cell_size)
+
+            # Check bounds and wall collision
+            if 0 <= grid_x < maze_width and 0 <= grid_y < maze_height:
+                if maze[grid_y][grid_x] == 1:  # Free space → keep bullet
+                    bullet_list.remove(bullet)
+
+
+    player_grid_x = int((player_pos_x - offset_x + cell_size / 2) / cell_size)
+    player_grid_y = int((player_pos_y - offset_y + cell_size / 2) / cell_size)
+    for l in life_list:
+            if player_life < 2:
+                if l[0] == player_grid_x and l[1] == player_grid_y:
+                    life_list.remove(l)
+                    player_life += 1
+                    free_space.append([l[0], l[1]])
+                    if len(life_list) < 1 and free_space:
+                        x, y = random.choice(free_space)
+                        free_space.remove([x, y])
+                        life_list.append([x, y])
+
+
+
+    
+
+    glutPostRedisplay()
+def mouseListener(button, state, x, y):
+    global fovY, player_pos_z, player_pos_x, player_pos_y, bullet_list, camera_pos, player_angle, fpp, game_over
+    # # Left mouse button fires a bullet
+    if button == GLUT_LEFT_BUTTON and state == GLUT_DOWN:
+        if not game_over:
+            bullet_x = player_pos_x
+            bullet_y = player_pos_y
+            bullet_z = player_pos_z
+            bullet_r = math.radians(player_angle + 90)
+            bullet_dx = math.cos(bullet_r)
+            bullet_dy = math.sin(bullet_r)
+            bullet_list.append([bullet_x, bullet_y, bullet_z, bullet_dx, bullet_dy])
+
+            # # Right mouse button toggles camera tracking mode
+    if button == GLUT_RIGHT_BUTTON and state == GLUT_DOWN:
+        fpp = not fpp
+
     glutPostRedisplay()
 
 
@@ -358,7 +461,28 @@ def keyboardListener(key, a, b):
             player_angle -= speed_r
         else:
             player_angle = 360
+    
+    if key == b'i':
+        fovY -= 10
+    if key == b'o':
+        fovY += 10
+    
+    
     glutPostRedisplay()
+
+def draw_treasure_box():
+    global free_space, center_x, center_y
+    cx, cy = grid_to_world(center_x, center_y)
+
+    glPushMatrix()
+    glTranslatef(cx, cy, 0)   # place in center cell
+    glColor3f(0.8, 0.8, 0)  # brown/orange box
+    glutSolidCube(cell_size)
+    glTranslatef(0, 0, 80)
+    glColor3f(0.6, 0.3, 0)
+    glutSolidSphere(30, 30, 30)
+    glPopMatrix()
+    
 def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     # glColor3f(1, 1, 1)
     glMatrixMode(GL_PROJECTION)
@@ -382,6 +506,41 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glMatrixMode(GL_PROJECTION)
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
+    
+    
+    
+def specialKeyListener(key, x, y):
+    global camera_pos, camera_angle
+    rad = math.radians(camera_angle)
+    cam_x, cam_y, cam_z = camera_pos
+    d = (cam_x ** 2 + cam_y ** 2) ** 0.5  # consider to center
+
+    # # Move camera up (UP arrow key)
+    if key == GLUT_KEY_UP:
+        cam_z += 10
+
+    # # # Move camera down (DOWN arrow key)
+    if key == GLUT_KEY_DOWN:
+        cam_z -= 10
+
+    # # moving camera left (LEFT arrow key)
+    if key == GLUT_KEY_LEFT:
+        camera_angle -= 5
+        rad = math.radians(camera_angle)
+        cam_x = d * math.sin(rad)
+        cam_y = d * math.cos(rad)
+        # Small angle decrement for smooth movement
+    #
+    # # moving camera right (RIGHT arrow key)
+    if key == GLUT_KEY_RIGHT:
+        camera_angle += 5
+        rad = math.radians(camera_angle)
+        cam_x = d * math.sin(rad)
+        cam_y = d * math.cos(rad)
+    # Small angle increment for smooth movement
+    #
+    camera_pos = (cam_x, cam_y, cam_z)
+
 
 def showScreen():
     # Clear color and depth buffers
@@ -394,20 +553,33 @@ def showScreen():
 
 
     draw_maze()
-
+    draw_treasure_box()
     draw_player()
+    if not game_over:
+        bullet()
+
 
 
     
-    for e in coin:
+        for e in coin:
             draw_coin(e[0], e[1])
-    for b in bonus_coin:
+        for b in bonus_coin:
             draw_bonus_coin(b[0], b[1])
             glColor3f(1, 1, 1)
-    draw_text(10, 740, f"Game Score: {score}")
-    draw_text(10, 710, f"Remaining time: {int(time)}")
-    draw_text(10, 680, f"Player Life: {player_life}")
-    draw_text(10, 650, f"Remaining shield: {int(shield_count)}")
+        draw_text(10, 740, f"Game Score: {score}")
+        draw_text(10, 710, f"Remaining time: {int(time)}")
+        draw_text(10, 680, f"Player Life: {player_life}")
+        draw_text(10, 650, f"Remaining shield: {int(shield_count)}")
+        if int(time) < 20:
+            # make it blink every half-second
+            if int(time * 2) % 2 == 0:
+                glColor3f(1, 0, 0)  # Red
+                draw_text(400, 760, " ALERT! TIME IS RUNNING OUT")
+                
+    elif game_over and game_win:
+        glColor3f(0.13, 1, 0)
+        draw_text(420, 400, "CONGRATULATIONS! YOU FOUND THE TREASURE!!!")
+        draw_text(430, 380, f"Final Score: {score}")
         
     glutSwapBuffers()
 
@@ -420,8 +592,8 @@ def main():
     wind = glutCreateWindow(b"Maze")  # Create the window
     glutDisplayFunc(showScreen)  # Register display function
     glutKeyboardFunc(keyboardListener)  # Register keyboard listener
-    #glutSpecialFunc(specialKeyListener)
-    # glutMouseFunc(mouseListener)
+    glutSpecialFunc(specialKeyListener)
+    glutMouseFunc(mouseListener)
     glutIdleFunc(animation)  # Register the idle function to move the bullet automatically
     glutMainLoop()  # Enter the GLUT main loop
 
